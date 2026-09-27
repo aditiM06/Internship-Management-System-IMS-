@@ -6,6 +6,7 @@ import pool from "./config/db.js";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import collegeRoutes from "./routes/collegeRoutes.js";
+import errorHandler from "./middleware/errorHandler.js";
 
 dotenv.config();
 
@@ -46,6 +47,8 @@ app.get("/api/test-db", async (req, res) => {
         });
     }
 });
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

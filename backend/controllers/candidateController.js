@@ -1,7 +1,6 @@
-
 import pool from "../config/db.js";
 
-export const createCandidate = async (req, res) => {
+export const createCandidate = async (req, res, next) => {
     try {
         const {
             name,
@@ -32,6 +31,16 @@ export const createCandidate = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "All required fields must be filled."
+            });
+        }
+
+        // Normalize and validate email
+        const normalizedEmail = email.trim().toLowerCase();
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid email address."
             });
         }
 
@@ -151,6 +160,54 @@ export const createCandidate = async (req, res) => {
             }
         }
 
+        // Find the active internship batch
+        const [activeBatches] = await pool.execute(
+            `
+            SELECT id, batch_number
+            FROM batches
+            WHERE is_active = TRUE
+            `
+        );
+
+        // No active batch
+        if (activeBatches.length === 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Registration is currently unavailable because no internship batch is active."
+            });
+        }
+
+        // More than one active batch indicates a configuration problem
+        if (activeBatches.length > 1) {
+            console.error("Multiple active batches found:", activeBatches);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to process registration because multiple internship batches are active."
+            });
+        }
+
+        const activeBatch = activeBatches[0];
+
+        // Check whether this email is already registered in the active batch
+        const [existingCandidates] = await pool.execute(
+            `
+            SELECT id
+            FROM candidates
+            WHERE email = ?
+            AND batch_id = ?
+            LIMIT 1
+            `,
+            [normalizedEmail, activeBatch.id]
+        );
+
+        if (existingCandidates.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "This email is already registered for the current internship batch."
+            });
+        }
+
         // Insert candidate into database
         const query = `
             INSERT INTO candidates (
@@ -164,14 +221,15 @@ export const createCandidate = async (req, res) => {
                 current_year,
                 passout_year,
                 preferred_department_1_id,
-                preferred_department_2_id
+                preferred_department_2_id,
+                batch_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const [result] = await pool.execute(query, [
             name.trim(),
-            email.trim(),
+            normalizedEmail,
             whatsapp_number,
             collegeId,
             otherCollegeName,
@@ -180,7 +238,8 @@ export const createCandidate = async (req, res) => {
             currentYearNumber,
             Number(passout_year),
             department1Id,
-            department2Id
+            department2Id,
+            activeBatch.id
         ]);
 
         return res.status(201).json({
@@ -190,17 +249,12 @@ export const createCandidate = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error creating candidate:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to register candidate."
-        });
+        next(error);
     }
 };
 
 
-export const getCandidates = async (req, res) => {
+export const getCandidates = async (req, res, next) => {
     try {
         const query = `
             SELECT
@@ -218,6 +272,8 @@ export const getCandidates = async (req, res) => {
                 d1.department_name AS preferred_department_1,
                 c.preferred_department_2_id,
                 d2.department_name AS preferred_department_2,
+                c.batch_id,
+                b.batch_number,
                 c.interview_registered_at,
                 c.interview_status,
                 c.notes,
@@ -230,6 +286,8 @@ export const getCandidates = async (req, res) => {
                 ON c.preferred_department_1_id = d1.id
             LEFT JOIN departments d2
                 ON c.preferred_department_2_id = d2.id
+            LEFT JOIN batches b
+                ON c.batch_id = b.id
             ORDER BY c.created_at DESC
         `;
 
@@ -241,11 +299,6 @@ export const getCandidates = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error fetching candidates:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch candidates."
-        });
+        next(error);
     }
 };
