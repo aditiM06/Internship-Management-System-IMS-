@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import pool from "./config/db.js";
 
+import cookieParser from "cookie-parser";
+import authRoutes from "./routes/authRoutes.js";
+
 import candidateRoutes from "./routes/candidateRoutes.js";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import collegeRoutes from "./routes/collegeRoutes.js";
@@ -16,6 +19,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // API Routes
 app.use("/api/candidates", candidateRoutes);
