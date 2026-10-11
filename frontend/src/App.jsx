@@ -1,9 +1,7 @@
-import StudentRegistration from "./pages/StudentRegistration";
+import Login from "./pages/Login";
 
 function App() {
-    return (
-        <StudentRegistration />
-    );
+    return <Login />;
 }
 
 export default App;

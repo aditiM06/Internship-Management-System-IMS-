@@ -1,5 +1,7 @@
 
 import express from "express";
+import { authenticate } from "../middleware/authMiddleware.js";
+import { authorize } from "../middleware/authorizeMiddleware.js";
 
 import {
     createCandidate,
@@ -8,8 +10,16 @@ import {
 
 const router = express.Router();
 
+// Public: student registration through QR
 router.post("/", createCandidate);
 
-router.get("/", getCandidates);
+
+// Protected: Coordinator + Admin candidate management
+router.get(
+    "/",
+    authenticate,
+    authorize("Admin", "Coordinator"),
+    getCandidates
+);
 
 export default router;
